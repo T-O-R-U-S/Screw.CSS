@@ -1,108 +1,84 @@
-use std::convert::Into;
-
-pub struct ArbitraryUnit(i64);
-
-pub enum Size {
-  Centimeter(f64),
-  Millimeter(f64),
-  Inch(f64),
-  Point(f64),
-  Pica(f64),
-  Pixel(u64),
-  Fraction(i64, u64),
-  Percentage(f64),
-  Vw(f64),
-  Vh(f64),
-  VMax(f64),
-  VMin(f64),
-  Rem(f64),
-  Em(f64),
-  Ex(f64),
-  Ch(f64),
-  /// Arbitrary size unit
-  Arbitrary(i64)
-}
+use lightningcss::rules::CssRule;
+use lightningcss::selector::Selector;
+use lightningcss::media_query::MediaCondition;
+use crate::tokens::FunCall;
 
 #[repr(u64)]
-/// Size, measured in pixels
+#[derive(Debug, Clone, Copy, Hash)]
 pub enum ScreenSize {
-  Xs = 480,
+  Xs = 320,
   Sm = 640,
   Md = 768,
   Lg = 1024,
-  // 720p
   Xl = 1280,
   Xl2 = 1536,
   // 1440p
   Xl3 = 2560,
-  // 4K
-  Xl4 = 3840,
-  Custom(u64)
+  // 4k
+  Xl4 = 3840
 }
 
-#[derive(Debug, Copy, Clone, Hash)]
-pub enum Selector {
-  Size(ScreenSize),
-  Compatible(Rule),
-  Dark,
+#[derive(Debug, Clone, Copy)]
+pub enum Size {
+  Px(u64),
+  Pc(f64),
+  Pt(f64),
+  In(f64),
+  Cm(f64),
+  Mm(f64),
+  Vh(f64),
+  Vw(f64),
+  VMin(f64),
+  VMax(f64),
+  Percent(f64),
+  Em(f64),
+  Rem(f64),
+  /// Arbitrary units decided upon by Screw
+  Arbitrary(f64)
 }
 
-pub enum CssPositionable {
-  Padding,
-  Margin,
-  Outline,
-  Ring,
-  Border,
-  Background,
-  BoxShadow
-}
-
-pub enum Flex {
-  Grow,
-  Row(bool),
-  Col(bool),
-  Wrap(bool),
-
-}
-
-#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
 pub enum Colour {
-  White = [255, 255, 255, 255].into(),
-  Black = [  0,   0,   0, 255].into()
+  Hsv(f64, f64, f64),
+  Hsl(f64, f64, f64),
+  Hwb(f64, f64, f64),
+  Lch(f64, f64, f64),
+  Lab(f64, f64, f64),
+  Rgb(f64, f64, f64),
+  Hex(u8,  u8,  u8 ),
 }
 
-#[derive(Debug, Copy, Clone, Hash)]
-pub enum Rule {
-  Display(Display),
-  Width(Size),
-  Height(Size),
-  XyValues {
-    kind: CssPositionable,
-    top: Size,
-    bottom: Size,
-    left: Size,
-    right: Size
-  },
-  // 8-bit RGBA colours
-  Colour(CssPositionable, u32),
-  Opacity(CssPositionable, f32),
-
-}
-
-#[derive(Debug, Copy, Clone, Hash)]
-pub enum Display {
+#[derive(Hash, Debug, Clone, Copy)]
+// TODO: CSS keywords
+pub enum Keyword {
   Hidden,
-  Inline,
   Block,
   Grid,
   Flex,
-  FlowRoot,
-  InlineBlock,
-  InlineGrid,
+  Inline,
   InlineFlex,
+  InlineGrid,
+  InlineBlock,
 }
 
+#[derive(Debug, Clone)]
+pub enum Parameter {
+  Size(Size),
+  Colour(u8, u8, u8, f64),
+  Keyword(Keyword),
+  FunCall(FunCall)
+}
+
+pub enum Output<'a> {
+  Selector(Selector<'a>),
+  MediaCondition(MediaCondition<'a>),
+  Rule(CssRule<'a>),
+}
+
+type ScrewFunction = fn(Vec<Parameter>) -> Output<'static>;
+
+#[derive(Debug, Clone)]
 pub struct SelectorRulePair {
-  selector: Vec<Selector>,
-  rule: Vec<Rule>
+  selector:  Vec<FunCall>,
+  functions: Vec<FunCall>
 }
