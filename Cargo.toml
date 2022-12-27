@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 chumsky = "0.8.0"
 lightningcss = "1.0.0-alpha.38"
+thiserror = "1.0.38"
+derive_more = "0.99.17"
+itertools = { version = "0.10.5", features=["use_alloc", "use_std"] }

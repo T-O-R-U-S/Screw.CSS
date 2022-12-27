@@ -1,0 +1,7 @@
+child:(w:20 h:20)
+
+md:lg:(w:20 h:20)
+
+support(bg-clip:text):(w:20 h:20)
+
+md:lg:support(bg-clip:text):(w:20 h:20)

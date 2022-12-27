@@ -44,11 +44,15 @@ Tailwind is not procedural; screw is!
 
 #### Easy custom values
 
-`bg:rgba(0, 255, 0, 0)`
+`bg:rgba(0 255 0 0)`
 
 `w:400px`
 
 `h:20vh`
+
+#### CSS injection
+
+`bg:@" /* mmmmm */ rgb(0, 255, 0) " @" background-position: top "`
 
 #### Procedural variable widths/heights, and colours from the Tailwind palette
 
