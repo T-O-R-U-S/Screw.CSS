@@ -2,6 +2,8 @@
 
 ## Procedural utility classes for CSS
 
+### No MVP exists; only a barebones tokenizer/parser
+
 ### Screw is not production-ready (yet ;), and many features are in the concept stage
 
 ### Why Screw?
