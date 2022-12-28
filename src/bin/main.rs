@@ -1,8 +1,9 @@
+use chumsky::Parser;
 use itertools::Itertools;
+
 use screw_css::errors::Error;
 use screw_css::parser::{Parameter, ParameterDisplay, parser};
 use screw_css::tokenizer::lex;
-use chumsky::Parser;
 
 fn main() -> Result<(), Error> {
     let text = include_str!("../../text.screw");
@@ -11,11 +12,11 @@ fn main() -> Result<(), Error> {
 
     let enumerated_result = result.iter().enumerate().collect_vec();
 
-    println!("{enumerated_result:#?}");
+    println!("{enumerated_result:?}");
 
     let parsed = parser().parse(result).unwrap();
 
-    println!("{parsed:?}");
+    println!("{:#?}", parsed);
 
     Ok(())
 }

@@ -1,15 +1,16 @@
 use std::fmt::{Display, Formatter};
-use std::iter::{Enumerate, Peekable};
-use std::vec::IntoIter;
-use chumsky::combinator::{Map, Then};
-use chumsky::Parser;
-use chumsky::prelude::{end, filter, filter_map, just, recursive, Recursive, skip_then_retry_until};
-use crate::errors::{Error, Unexpected::{Token as UnexpectedToken, Parameter as UnexpectedParameter, TokenUnspecified, ParameterUnspecified}};
-use crate::tokenizer::{Keyword, Token};
-use derive_more::{Display, FromStr, IsVariant, Unwrap};
+use std::iter::Peekable;
+use std::ops::Mul;
+
+use chumsky::combinator::Then;
 use chumsky::error::Cheap;
-use chumsky::primitive::Filter;
-use crate::errors::Error::Unexpected;
+use chumsky::Parser;
+use chumsky::prelude::{end, filter, filter_map, just, one_of, recursive, Recursive, skip_then_retry_until};
+use derive_more::{Display, IsVariant, Unwrap};
+use itertools::Itertools;
+
+use crate::errors::{Unexpected::{Parameter as UnexpectedParameter, ParameterUnspecified, Token as UnexpectedToken, TokenUnspecified}};
+use crate::tokenizer::{Keyword, Token};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Display)]
 /// CSS units
@@ -44,7 +45,7 @@ pub enum Unit {
     Percent,
     /// arbitrary/unspecified unit
     #[display(fmt = "")]
-    Arbitrary
+    Arbitrary,
 }
 
 pub struct ParameterDisplay(pub Vec<Parameter>);
@@ -59,7 +60,7 @@ impl Display for ParameterDisplay {
     }
 }
 
-#[derive(Debug, Clone, Display, Unwrap, IsVariant)]
+#[derive(Debug, Clone, Display, IsVariant)]
 pub enum Parameter {
     #[display(fmt = "{_0}{_1}")]
     Unit(f64, Unit),
@@ -67,53 +68,148 @@ pub enum Parameter {
     #[display(fmt = "{_0:?}")]
     String(String),
     Keyword(Keyword),
-    #[display(fmt = "{_0}:({})", "ParameterDisplay(_1.clone())")]
-    Function(String, Vec<Parameter>),
-    #[display(fmt = "{_0}({}):({})", "ParameterDisplay(_1.clone())", "ParameterDisplay(_2.clone())")]
-    ProceduralFunction(String, Vec<Parameter>, Vec<Parameter>)
+    #[display(fmt = "{name}:{parameter}")]
+    Function {
+        name: String,
+        parameter: Box<Parameter>,
+    },
+    #[display(fmt = "{name}({}):{parameter}", "ParameterDisplay(procedural_parameters.clone())")]
+    ProceduralFunction {
+        name: String,
+        procedural_parameters: Vec<Parameter>,
+        parameter: Box<Parameter>,
+    },
+    #[display(fmt = "({})", "ParameterDisplay(_0.clone())")]
+    Group(Vec<Parameter>),
+    #[display(fmt = "@{_0}")]
+    InjectedCSS(String),
+}
+
+impl Parameter {
+    pub fn unwrap_unit(self) -> (f64, Unit) {
+        match self {
+            Self::Unit(x, y) => (x, y),
+            unexpected => panic!("Expected Unit, found {unexpected}")
+        }
+    }
+    pub fn unwrap_ident(self) -> String {
+        match self {
+            Self::Ident(id) => id,
+            unexpected => panic!("Expected Ident, found {unexpected}")
+        }
+    }
+    pub fn unwrap_string(self) -> String {
+        match self {
+            Self::String(str) => str,
+            unexpected => panic!("Expected String, found {unexpected}")
+        }
+    }
+    pub fn unwrap_keyword(self) -> Keyword {
+        match self {
+            Self::Keyword(keyword) => keyword,
+            unexpected => panic!("Expected Keyword, found {unexpected}")
+        }
+    }
+    pub fn unwrap_function(self) -> (String, Box<Parameter>) {
+        match self {
+            Self::Function { name, parameter } => (name, parameter),
+            unexpected => panic!("Expected Function, found {unexpected}")
+        }
+    }
+    pub fn unwrap_procedural(self) -> (String, Vec<Parameter>, Box<Parameter>) {
+        match self {
+            Self::ProceduralFunction { name, procedural_parameters, parameter } => (name, procedural_parameters, parameter),
+            unexpected => panic!("Expected Procedural Function, found {unexpected}")
+        }
+    }
+    pub fn unwrap_group(self) -> Vec<Parameter> {
+        match self {
+            Self::Group(group) => group,
+            unexpected => panic!("Expected Group, found {unexpected}")
+        }
+    }
+    pub fn negate(self, negate: bool) -> Parameter {
+        if !negate {
+            return self;
+        }
+
+        match self {
+            Parameter::Unit(num, unit) => Parameter::Unit(num * -1.0, unit),
+            Parameter::Group(parameters)
+            =>
+                Parameter::Group(
+                    parameters.into_iter().map(|x| x.negate(true)).collect_vec()
+                ),
+            any => any
+        }
+    }
 }
 
 pub fn parser() -> impl Parser<Token, Vec<Parameter>, Error=Cheap<Token>> {
     recursive(|value| {
-        let num = filter(|x: &Token| x.is_number()).map(|x| x.unwrap_number()).labelled("Number");
+        let negator = just(Token::Negator).or_not().map(|x| x.is_some());
+        let num = negator.clone()
+            .then(filter(|x: &Token| x.is_number()))
+            .map(|(negative, x)| {
+                let num = x.unwrap_number();
+
+                if negative {
+                    -num
+                } else {
+                    num
+                }
+            })
+            .labelled("Number");
         let unit = filter(|x: &Token| x.is_unit()).map(|x| x.unwrap_unit()).labelled("Unit");
         let group = filter(|x: &Token| x.is_group()).map(|x| x.unwrap_group()).map(|x| parser().parse(x).unwrap()).labelled("Group");
         let ident = filter(|x: &Token| x.is_ident()).map(|x| x.unwrap_ident()).labelled("Ident");
-        let unit = num.then(unit.or_not()).map(|(num, unit)| Parameter::Unit(num, unit.unwrap_or(Unit::Arbitrary))).labelled("Unit");
+        let measurement = num.then(unit.or_not()).map(|(num, unit)| Parameter::Unit(num, unit.unwrap_or(Unit::Arbitrary))).labelled("Measurement");
         let string = filter(|x: &Token| x.is_string()).map(|x| x.unwrap_string()).labelled("String");
+        let keyword = filter(|x: &Token| x.is_keyword()).map(|x| x.unwrap_keyword()).labelled("String");
 
-        let function = ident
+        let injected_css = just(Token::At).ignore_then(string);
+
+        let function = negator.then(ident)
             .labelled("Function identifier")
-            .then_ignore(just(Token::Colon).or_not())
-            .labelled("Colon")
+            .then_ignore(just(Token::Colon).labelled("Colon"))
             .then(
-                group.or(
-                    value
-                )
+                value.clone().labelled("Function input")
             )
-            .labelled("Function input")
-            .map(|(name, parameters)| Parameter::Function(name, parameters));
+            .map(|((negative, name), parameter): ((bool, String), Parameter)| Parameter::Function {
+                name,
+                parameter: Box::new(parameter.negate(negative)),
+            }).labelled("Function");
 
-        let procedural_function = function.clone().then_ignore(just(Token::Colon)).then(group).map(
-            |(procedural_function, parameters)| {
-                let (function_name, procedural_parameters) = procedural_function.unwrap_function();
-
-                Parameter::ProceduralFunction(function_name, procedural_parameters, parameters)
+        let procedural_function = ident.then(group).then_ignore(just(Token::Colon)).then(value).map(
+            |((name, procedural_parameters), parameter)| {
+                Parameter::ProceduralFunction {
+                    name,
+                    procedural_parameters,
+                    parameter: Box::new(parameter),
+                }
             }
-        );
+        ).labelled("Procedural function");
 
         procedural_function.or(
-            function.labelled("Function")
+            function
         )
             .or(
-                unit.labelled("Unit input")
+                measurement
+            )
+            .or(
+                keyword.map(Parameter::Keyword)
             )
             .or(
                 ident.map(Parameter::Ident)
             )
             .or(
+                injected_css.map(Parameter::InjectedCSS)
+            )
+            .or(
                 string.map(Parameter::String)
             )
-            .repeated()
-    }).then_ignore(end())
+            .or(
+                group.map(Parameter::Group)
+            )
+    }).repeated().then_ignore(end())
 }

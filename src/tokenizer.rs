@@ -1,11 +1,11 @@
-use derive_more::{Display, Unwrap, IsVariant};
+use derive_more::{Display, IsVariant, Unwrap};
+
 use crate::errors::{Error, Unexpected};
 use crate::parser::Unit;
 
-#[derive(Debug, Clone, PartialOrd, PartialEq, Display, Unwrap)]
-pub enum Keyword {
-
-}
+// TODO: Some keywords!
+#[derive(Debug, Clone, PartialOrd, PartialEq, Display, Unwrap, IsVariant)]
+pub enum Keyword {}
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Display, Unwrap, IsVariant)]
 pub enum Token {
@@ -27,7 +27,7 @@ pub enum Token {
     Block(Vec<Token>),
     #[display(fmt = "{_0}")]
     Keyword(Keyword),
-    Unit(Unit)
+    Unit(Unit),
 }
 
 pub fn lex(input: String) -> Result<Vec<Token>, Error> {
@@ -71,11 +71,13 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
                 let mut radix = 10;
 
                 if number.as_str() == "0" {
-                    match input.peek() {
+                    match input.next() {
                         Some('o') => radix = 8,
                         Some('x') => radix = 16,
                         Some('b') => radix = 2,
-                        _ => {}
+                        Some(digit @ '0'..='9') => { number.push(digit) }
+                        Some(_) => return Err(Error::IncorrectNumber),
+                        None => {}
                     }
                 }
 
@@ -100,8 +102,16 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
 
                 while open_brackets != 0 {
                     match input.next() {
-                        Some('(') => open_brackets += 1,
-                        Some(')') => open_brackets -= 1,
+                        Some('(') => {
+                            open_brackets += 1;
+                            to_parse.push('(');
+                        }
+                        Some(')') => {
+                            open_brackets -= 1;
+                            if open_brackets != 0 {
+                                to_parse.push(')')
+                            }
+                        }
 
                         Some('\\') => to_parse.push(input.next().unwrap_or('\x00')),
 
@@ -120,8 +130,16 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
 
                 while open_brackets != 0 {
                     match input.next() {
-                        Some('{') => open_brackets += 1,
-                        Some('}') => open_brackets -= 1,
+                        Some('{') => {
+                            open_brackets += 1;
+                            to_parse.push('{');
+                        }
+                        Some('}') => {
+                            open_brackets -= 1;
+                            if open_brackets != 0 {
+                                to_parse.push('}')
+                            }
+                        }
 
                         Some('\\') => to_parse.push(input.next().unwrap_or('\x00')),
 
@@ -138,7 +156,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
 
                 while let Some(character) = input.next() {
                     match character {
-                        '\\' => output.push( input.next().unwrap_or('\x00') ),
+                        '\\' => output.push(input.next().unwrap_or('\x00')),
                         '"' => break,
                         character => output.push(character)
                     }
@@ -146,6 +164,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
 
                 Token::String(output)
             }
+            '$' => todo!("Variable support is not yet done, or finalized."),
             '%' => Token::Unit(Unit::Percent),
             unexpected => return Err(Error::Unexpected(Unexpected::Char(unexpected)))
         };
