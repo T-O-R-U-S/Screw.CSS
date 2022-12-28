@@ -1,6 +1,6 @@
 use lightningcss::properties::background::BackgroundClip;
-use lightningcss::properties::display::{Display, DisplayKeyword};
 use lightningcss::properties::Property;
+use lightningcss::selector::Selector;
 use lightningcss::vendor_prefix::VendorPrefix;
 use phf::phf_map;
 use smallvec::smallvec;

@@ -1,8 +1,7 @@
 use chumsky::Parser;
-use itertools::Itertools;
 
 use screw_css::errors::Error;
-use screw_css::parser::{Parameter, ParameterDisplay, parser};
+use screw_css::parser::parser;
 use screw_css::tokenizer::lex;
 
 fn main() -> Result<(), Error> {
@@ -10,13 +9,11 @@ fn main() -> Result<(), Error> {
 
     let result = lex(text.to_string())?;
 
-    let enumerated_result = result.iter().enumerate().collect_vec();
-
-    println!("{enumerated_result:?}");
+    println!("{result:?}");
 
     let parsed = parser().parse(result).unwrap();
 
-    println!("{:#?}", parsed);
+    println!("{parsed:?}");
 
     Ok(())
 }

@@ -7,10 +7,7 @@ pub mod errors;
 pub mod parser;
 pub mod compiler;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
+// TODO: Tests :)
 #[cfg(test)]
 mod tests {
     use crate::tokenizer::lex;

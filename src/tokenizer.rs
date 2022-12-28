@@ -71,19 +71,23 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
                 let mut radix = 10;
 
                 if number.as_str() == "0" {
-                    match input.next() {
+                    match input.peek() {
                         Some('o') => radix = 8,
                         Some('x') => radix = 16,
                         Some('b') => radix = 2,
-                        Some(digit @ '0'..='9') => { number.push(digit) }
-                        Some(_) => return Err(Error::IncorrectNumber),
-                        None => {}
+                        _ => {}
+                    }
+
+                    if radix != 10 {
+                        input.next();
                     }
                 }
 
-                while let Some(character) = input.next_if(|x| matches!(x, '0'..='9' | 'a'..='f' | '.')) {
+                while let Some(character) = input.next_if(|x| x.is_ascii_hexdigit() || x == &'.' || x == &'_') {
                     number.push(character)
                 }
+
+                number = number.replace("_", "");
 
                 if radix != 10 {
                     let number = u64::from_str_radix(&number, radix).or(Err(Error::IncorrectNumber))? as f64;

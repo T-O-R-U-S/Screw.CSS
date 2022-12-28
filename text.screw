@@ -1,11 +1,1 @@
-child:(w:20 h:20)
-
-md:lg:(w:20 h:20)
-
-support(bg-clip:text):(w:20 h:20)
-
-md:lg:support(bg-clip:text):(w:(20 22) h:20)
-
-grid-cols:14
-
-supports(bg-clip:text):(bg-clip:text text-colour:transparent)
+0 255 0 0
