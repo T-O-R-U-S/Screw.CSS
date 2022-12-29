@@ -20,7 +20,7 @@ pub enum Token {
     #[display(fmt = "{_0}")]
     Ident(String),
     #[display(fmt = "{_0}")]
-    Number(f64),
+    Number(f32),
     #[display(fmt = "TODO: Group formatting")]
     Group(Vec<Token>),
     #[display(fmt = "TODO: Block formatting")]
@@ -87,12 +87,12 @@ pub fn lex(input: String) -> Result<Vec<Token>, Error> {
                     number.push(character)
                 }
 
-                number = number.replace("_", "");
+                number = number.replace('_', "");
 
                 if radix != 10 {
-                    let number = u64::from_str_radix(&number, radix).or(Err(Error::IncorrectNumber))? as f64;
+                    let number = u64::from_str_radix(&number, radix).or(Err(Error::IncorrectNumber))?;
 
-                    Token::Number(number)
+                    Token::Number(number as f32)
                 } else {
                     let number = number.parse().or(Err(Error::IncorrectNumber))?;
 

@@ -5,10 +5,12 @@ use chumsky::Parser;
 use chumsky::prelude::{end, filter, just, recursive};
 use derive_more::{Display, IsVariant};
 use itertools::Itertools;
+use lightningcss::values::length::{LengthPercentage, LengthValue};
+use lightningcss::values::percentage::Percentage;
 
 use crate::tokenizer::{Keyword, Token};
 
-#[derive(Debug, Clone, PartialOrd, PartialEq, Display)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Display)]
 /// CSS units
 pub enum Unit {
     #[display(fmt = "px")]
@@ -59,7 +61,7 @@ impl Display for ParameterDisplay {
 #[derive(Debug, Clone, Display, IsVariant)]
 pub enum Parameter {
     #[display(fmt = "{_0}{_1}")]
-    Unit(f64, Unit),
+    Unit(f32, Unit),
     Ident(String),
     #[display(fmt = "{_0:?}")]
     String(String),
@@ -77,12 +79,12 @@ pub enum Parameter {
     },
     #[display(fmt = "({})", "ParameterDisplay(_0.clone())")]
     Group(Vec<Parameter>),
-    #[display(fmt = "@{_0}")]
+    #[display(fmt = "@{_0:?}")]
     InjectedCSS(String),
 }
 
 impl Parameter {
-    pub fn unwrap_unit(self) -> (f64, Unit) {
+    pub fn unwrap_unit(self) -> (f32, Unit) {
         match self {
             Self::Unit(x, y) => (x, y),
             unexpected => panic!("Expected Unit, found {unexpected}")
@@ -208,4 +210,33 @@ pub fn parser() -> impl Parser<Token, Vec<Parameter>, Error=Cheap<Token>> {
                 group.map(Parameter::Group)
             )
     }).repeated().then_ignore(end())
+}
+
+impl TryInto<LengthPercentage> for Parameter {
+    type Error = Parameter;
+
+    fn try_into(self) -> Result<LengthPercentage, Self::Error> {
+        match self {
+            Parameter::Unit(num, unit) => {
+                Ok(LengthPercentage::Dimension((match unit {
+                    Unit::Px => LengthValue::Px,
+                    Unit::Pc => LengthValue::Pc,
+                    Unit::Pt => LengthValue::Pt,
+                    Unit::In => LengthValue::In,
+                    Unit::Cm => LengthValue::Cm,
+                    Unit::Mm => LengthValue::Mm,
+                    Unit::Vh => LengthValue::Vh,
+                    Unit::Vw => LengthValue::Vw,
+                    Unit::VMin => LengthValue::Vmin,
+                    Unit::VMax => LengthValue::Vmax,
+                    Unit::Rem => LengthValue::Rem,
+                    Unit::Em => LengthValue::Em,
+                    Unit::Deg => return Err(self),
+                    Unit::Percent => return Ok(LengthPercentage::Percentage(Percentage(num))),
+                    Unit::Arbitrary => return Ok(LengthPercentage::Dimension(LengthValue::Em(num / 4.0)))
+                })(num)))
+            }
+            parameter => Err(parameter)
+        }
+    }
 }
