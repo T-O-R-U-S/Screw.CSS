@@ -25,9 +25,13 @@ Tailwind doesn't support using its own utility classes in `supports` queries; Sc
 
   `supports-[background-clip:text]:bg-clip-text supports-[background-clip-text]:text-transparent`
 
-- Tailwind has child selector by default; Screw does!
+- Tailwind has no child selector by default; Screw does!
 
   `child:(w:20 h:20)`
+  
+  - In Tailwind JIT:
+  
+  `[&>*]:w-20 [&>*]:h-20`
 
 The lack of selectors like `child` or `supports` in Tailwind means you will have to leave your HTML more often
 in order to extract these properties into their own utility class; with Screw, you don't have to leave as often!
